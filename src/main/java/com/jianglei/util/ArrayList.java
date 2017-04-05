@@ -1,8 +1,10 @@
 package com.jianglei.util;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.RandomAccess;
+import java.util.*;
 
 /**
  * Created by jianglei on 2017/4/4.
@@ -29,6 +31,10 @@ public class ArrayList<E> extends AbstractList<E>
            throw new IllegalArgumentException("Illegal Capacity: " +
                                                 initialCapacity);
         }
+    }
+
+    public ArrayList(){
+        this.elementData = DEFAULTCAPACITY_EMPTY_ELEMENTDATA;
     }
 
     public ArrayList(Collection<? extends E> c){
@@ -264,6 +270,454 @@ public class ArrayList<E> extends AbstractList<E>
         return numNew != 0;
     }
 
-    ...
+    protected void removeRange(int fromIndex, int toIndex){
+        modCount++;
+        int numMoved = size - toIndex;
+        System.arraycopy(elementData, toIndex, elementData, fromIndex,
+                        numMoved);
+        //clear to let GC do its work
+        int newSize = size - (toIndex - fromIndex);
+        for(int i = newSize; i < size; i++){
+            elementData[i] = null;
+        }
+        size = newSize;
+    }
+    private  void rangeCheck(int index){
+        if(index >= size){
+            throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+        }
+    }
+    private void rangeCheckForAdd(int index){
+        if(index > size || index < 0){
+            throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+        }
+    }
+
+    private String outOfBoundsMsg(int index){
+        return "Index: " + index + ", Size: " + size;
+    }
+
+    public boolean removeAll(Collection<?> c){
+        Objects.requireNonNull(c);
+        return batchRemove(c, false);
+    }
+
+    public boolean retainAll(Collection<?> c){
+        Objects.requireNonNull(c);
+        return batchRemove(c, true);
+    }
+
+    private boolean batchRemove(Collection<?> c, boolean complement){
+        final Object[] elementData = this.elementData;
+        int r = 0, w = 0;
+        boolean modified = false;
+        try {
+            for(; r < size; r++){
+                if(c.contains(elementData[r]) == complement)
+                    elementData[w++] = elementData[r];
+            }
+        } finally {
+            if(r != size){
+                System.arraycopy(elementData, r,
+                                elementData, w,
+                                size - r);
+            }
+            if(w != size){
+                for(int i = w; i < size; i++){
+                    elementData[i] = null;
+                }
+                modCount += size - w;
+                size = w;
+                modified = true;
+            }
+        }
+
+        return modified;
+    }
+
+    private void writeObject(ObjectOutputStream s) throws IOException{
+        int expectedModCount = modCount;
+        s.defaultWriteObject();
+
+        s.writeInt(size);
+
+        for (int i = 0; i < size; i++) {
+            s.writeObject(elementData[i]);
+        }
+
+        if(modCount != expectedModCount){
+            throw new ConcurrentModificationException();
+        }
+    }
+
+    private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
+        elementData = EMPTY_ELEMENTDATA;
+        s.defaultReadObject();
+
+        s.readInt();
+
+        if(size > 0){
+            ensureCapacityInternal(size);
+
+            Object[] a = elementData;
+            for(int i = 0; i < size; i++){
+                a[i] = s.readObject();
+            }
+        }
+    }
+
+    public ListIterator<E> listIterator(int index){
+        if(index < 0 || index > size){
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+        return new ListItr(index);
+    }
+
+    public ListIterator<E> listIterator(){
+        return new ListItr(0);
+    }
+
+    public Iterator<E> iterator(){
+        return new Itr();
+    }
+
+    private class Itr implements Iterator<E>{
+        int cursor;
+        int lastRet = -1;
+        int expectedModCount = modCount;
+
+
+        public boolean hasNext() {
+            return cursor != size;
+        }
+
+        public E next() {
+            checkForComodification();
+            int i = cursor;
+            if(i >= size){
+                throw new NoSuchElementException();
+            }
+            Object[] elementData = ArrayList.this.elementData;
+            if(i >= elementData.length){
+                throw new ConcurrentModificationException();
+            }
+            cursor = i + 1;
+
+            return (E) elementData[lastRet = i];
+        }
+
+        public void remove(){
+            if(lastRet < 0){
+                throw new IllegalStateException();
+            }
+            checkForComodification();
+            try{
+                ArrayList.this.remove(lastRet);
+                cursor = lastRet;
+                lastRet = -1;
+                expectedModCount = modCount;
+            } catch (IndexOutOfBoundsException ex){
+                throw new ConcurrentModificationException();
+            }
+        }
+
+        final void checkForComodification(){
+            if(modCount != expectedModCount){
+                throw new ConcurrentModificationException();
+            }
+        }
+    }
+
+    private class ListItr extends Itr implements ListIterator<E>{
+        ListItr(int index){
+            super();
+            cursor = index;
+        }
+        @Override
+        public boolean hasPrevious() {
+            return cursor != 0;
+        }
+        @Override
+        public int nextIndex() {
+            return cursor;
+        }
+
+        @Override
+        public int previousIndex() {
+            return cursor - 1;
+        }
+
+        @Override
+        public E privious() {
+            checkForComodification();
+            int i = cursor - 1;
+            if(i < 0)
+                throw new NoSuchElementException();
+            Object[] elementData = ArrayList.this.elementData;
+            if(i >= elementData.length)
+                throw new ConcurrentModificationException();
+            cursor = i;
+            return (E) elementData[lastRet - 1];
+
+        }
+
+
+        @Override
+        public void set(E e) {
+            if(lastRet < 0)
+                throw new IllegalStateException();
+            checkForComodification();
+            try {
+                ArrayList.this.set(lastRet, e);
+            } catch (IndexOutOfBoundsException ex){
+                throw new ConcurrentModificationException();
+            }
+        }
+
+        @Override
+        public void add(E e) {
+            checkForComodification();
+
+            try {
+                int i = cursor;
+                ArrayList.this.add(i, e);
+                cursor = i + 1;
+                lastRet = -1;
+                expectedModCount = modCount;
+            } catch (IndexOutOfBoundsException ex){
+                throw new ConcurrentModificationException();
+            }
+
+        }
+    }
+
+    public List<E> subList(int fromIndex, int toIndex){
+        subListRangeCheck(fromIndex, toIndex, size);
+        return new SubList(this, 0, fromIndex, toIndex);
+    }
+
+    static void subListRangeCheck(int fromIndex, int toIndex, int size){
+        if(fromIndex < 0)
+            throw new IndexOutOfBoundsException("fromIndex = " + fromIndex);
+        if(toIndex > size)
+            throw new IndexOutOfBoundsException("toIndex = " + toIndex);
+        if(fromIndex > toIndex)
+            throw new IllegalArgumentException("fromIndex(" + fromIndex +
+                                                ") > toIndex(" + toIndex + ")");
+    }
+
+    private class SubList extends AbstractList<E> implements RandomAccess{
+        private final AbstractList<E> parent;
+        private final int parentOffset;
+        private final int offset;
+        int size;
+
+        SubList(AbstractList<E> parent,
+                int offset, int fromIndex, int toIndex){
+            this.parent = parent;
+            this.parentOffset = fromIndex;
+            this.offset = offset + fromIndex;
+            this.size = toIndex - fromIndex;
+            this.modCount = ArrayList.this.modCount;
+        }
+
+        public E set(int index, E e){
+            rangeCheck(index);
+            checkForComodification();
+            E oldValue = ArrayList.this.elementData(offset + index);
+            ArrayList.this.elementData[offset + index] = e;
+            return oldValue;
+        }
+
+        public E get(int index){
+            rangeCheck(index);
+            checkForComodification();
+            return ArrayList.this.elementData(offset + index);
+        }
+
+        public int size(){
+            checkForComodification();
+            return this.size;
+        }
+
+        public void add(int index, E e){
+            rangeCheckForAdd(index);
+            checkForComodification();
+            parent.add(parentOffset + index, e);
+            this.modCount = parent.modCount;
+            this.size++;
+        }
+
+        public E remove(int index){
+            rangeCheck(index);
+            checkForComodification();
+            E result = parent.remove(parentOffset + index);
+            this.modCount = parent.modCount;
+            this.size--;
+            return result;
+        }
+
+        protected void removeRange(int fromIndex, int toIndex){
+            checkForComodification();
+            parent.removeRange(parentOffset + fromIndex,
+                                parentOffset + toIndex);
+            this.modCount = parent.modCount;
+            this.size -= toIndex - fromIndex;
+        }
+
+        public boolean addAll(Collection<? extends E> c){
+            return addAll(this.size, c);
+        }
+
+        public boolean addAll(int index, Collection<? extends E> c){
+            rangeCheckForAdd(index);
+            int cSize = c.size();
+            if(cSize == 0){
+                return false;
+            }
+            checkForComodification();
+            parent.addAll(parentOffset + index, c);
+            this.modCount = parent.modCount;
+            this.size += cSize;
+            return true;
+        }
+
+        public Iterator<E> iterator(){
+            return listIterator();
+        }
+
+        public ListIterator<E> listIterator(final int index){
+            checkForComodification();
+            rangeCheckForAdd(index);
+            final int offset = this.offset;
+
+            return new ListIterator<E>() {
+                int cursor = index;
+                int lastRet = -1;
+                int expectedModCount = ArrayList.this.modCount;
+
+                @Override
+                public boolean hasNext() {
+                    return cursor != SubList.this.size;
+                }
+
+                @Override
+                public E next() {
+                    checkForComodification();
+                    int i = cursor;
+                    if(i >= SubList.this.size)
+                        throw new NoSuchElementException();
+                    Object[] elementData = ArrayList.this.elementData;
+                    if(offset + i >= elementData.length)
+                        throw new ConcurrentModificationException();
+                    cursor = i + 1;
+                    return (E) elementData[offset + (lastRet = i)];
+                }
+
+                @Override
+                public boolean hasPrevious() {
+                    return cursor != 0;
+                }
+
+                @Override
+                public E privious() {
+                    checkForComodification();
+                    int i = cursor - 1;
+                    if(i < 0)
+                        throw new NoSuchElementException();
+                    Object[] elementData = ArrayList.this.elementData;
+                    if(offset + i >= elementData.length)
+                        throw new ConcurrentModificationException();
+                    cursor = i;
+                    return (E) elementData[offset + (lastRet = i)];
+                }
+
+
+
+                @Override
+                public int nextIndex() {
+                    return cursor;
+                }
+
+                @Override
+                public int previousIndex() {
+                    return cursor - 1;
+                }
+
+                @Override
+                public void remove() {
+                    if(lastRet < 0)
+                        throw new IllegalStateException();
+                    checkForComodification();
+
+                    try{
+                        SubList.this.remove(lastRet);
+                        cursor = lastRet;
+                        lastRet = -1;
+                        expectedModCount = ArrayList.this.modCount;
+                    }catch (IndexOutOfBoundsException ex){
+                        throw new ConcurrentModificationException();
+                    }
+                }
+
+                @Override
+                public void set(E e) {
+                    if(lastRet < 0)
+                        throw new IllegalStateException();
+                    checkForComodification();
+
+                    try{
+                        ArrayList.this.set(offset + lastRet, e);
+                    }catch (IndexOutOfBoundsException ex){
+                        throw new ConcurrentModificationException();
+                    }
+                }
+
+                @Override
+                public void add(E e) {
+                    checkForComodification();
+
+                    try {
+                        int i = cursor;
+                        SubList.this.add(i, e);
+                        cursor = i + 1;
+                        lastRet = -1;
+                        expectedModCount = ArrayList.this.modCount;
+                    } catch (IndexOutOfBoundsException ex){
+                        throw new ConcurrentModificationException();
+                    }
+                }
+
+                final void checkForComodification(){
+                    if(expectedModCount != ArrayList.this.modCount)
+                        throw new ConcurrentModificationException();
+                }
+            };
+        }
+
+        public List<E> subList(int fromIndex, int toIndex){
+            subListRangeCheck(fromIndex, toIndex, size);
+            return new SubList(this, offset, fromIndex, toIndex);
+        }
+
+        private void rangeCheck(int index){
+            if(index < 0 || index >= this.size)
+                throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+        }
+
+        private void rangeCheckForAdd(int index){
+            if(index < 0 || index > this.size)
+                throw new IndexOutOfBoundsException(outOfBoundsMsg(index));
+        }
+
+        private String outOfBoundsMsg(int index){
+            return "Index: " + index + ", Size: " + this.size;
+        }
+
+        private void checkForComodification(){
+            if(ArrayList.this.modCount != this.modCount)
+                throw new ConcurrentModificationException();
+        }
+    }
 
 }
