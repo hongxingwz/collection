@@ -94,6 +94,41 @@ public  abstract class AbstractSequentialList<E> extends AbstractList<E> {
         }
     }
 
+    public E remove(int index){
+        try{
+            ListIterator<E> e = listIterator(index);
+            E outCast = e.next();
+            e.remove();
+            return outCast;
+        } catch (NoSuchElementException exc){
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+    }
+
+    public boolean addAll(int index, Collection<? extends E> c){
+        try{
+            boolean modified = false;
+            ListIterator<E> e1 = listIterator(index);
+            Iterator<? extends E> e2 = c.iterator();
+            while (e2.hasNext()){
+                e1.add(e2.next());
+                modified = true;
+            }
+            return modified;
+        }catch (NoSuchElementException e){
+            throw new IndexOutOfBoundsException("Index: " + index);
+        }
+    }
+    //Iterators
+
+    /**
+     * 返回一个在此列表上所有元素的迭代器（按照适当的顺序）
+     * 此实现仅返回列表的一个列表迭代器
+     * @return 在此列表中的元素上进行迭代的列表迭代器
+     */
+    public Iterator<E> iterator(){
+        return listIterator();
+    }
     /**
      * 返回在此列表中的元素上进行迭代的列表迭代器（近适当顺序）
      * @param index 从列表迭代器返回（通过调用next方法）的第一个元素的索引
