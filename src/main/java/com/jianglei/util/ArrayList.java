@@ -264,6 +264,4 @@ public class ArrayList<E> extends AbstractList<E>
         return numNew != 0;
     }
 
-    ...
-
 }
