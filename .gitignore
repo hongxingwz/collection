@@ -1,3 +1,4 @@
+#这些是忽略的文件
 .idea/
 collection.iml
 src/test/
