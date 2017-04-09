@@ -1,5 +1,7 @@
 package com.jianglei.util;
 
+import java.io.Serializable;
+
 /**
  * 此类提供了Map接口实际的骨架，
  * 为了实现此接口复出最小的努力。
@@ -155,6 +157,371 @@ public abstract class AbstractMap<K, V> implements Map<K, V> {
      */
     public V put(K key, V value){
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @implSpec
+     * 此实现迭代整个entrySet()寻找具有指定key的entry。
+     * 如果这样的entry被找到，其value值被其getValue操作获得，
+     * 此entry从此collection中移除（依靠map)通过迭代器的remove
+     * 操作，然后被保存的value被返回，如果迭代终止还没找到这样的entry，
+     * null值被返回。注意此实现需要线性时间与map的大小相关；许多实现
+     * 会覆盖此方法。
+     *
+     * 注意此实现会抛出一个UnsupportedOperationException，如果entrySet
+     * 迭代器不支持remove方法并且此map包含指定的key
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     */
+    public V remove(Object key){
+        Iterator<Entry<K, V>> i = entrySet().iterator();
+        Entry<K, V> correctEntry = null;
+        if(key == null){
+            while (correctEntry == null && i.hasNext()){
+                Entry<K, V> e = i.next();
+                if(e.getKey() == null)
+                    correctEntry = e;
+            }
+        } else {
+            while (correctEntry == null && i.hasNext()){
+                Entry<K, V> e = i.next();
+                if(key.equals(e.getKey()))
+                    correctEntry = e;
+            }
+        }
+        V oldValue = null;
+        if(correctEntry != null){
+            oldValue = correctEntry.getValue();
+            i.remove();
+        }
+
+        return oldValue;
+    }
+
+    //Bulk Operation
+
+    /**
+     * {@inheritDoc}
+     *
+     * @implSpec
+     * 此实现迭代整个指定map的entrySet()返回的集合，
+     * 并对迭代器返回的entry 调用此map的put操作.
+     *
+     * 注意此实现抛出一个UnsupprotedOperationException
+     * 如果此map不支持put操作，并且指定的map非空
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     * @throws ClassCastException            {@inheritDoc}
+     * @throws NullPointerException          {@inheritDoc}
+     * @throws IllegalArgumentException      {@inheritDoc}
+     */
+
+    public void putAll(Map<? extends K, ? extends V> m){
+        for(Map.Entry<? extends K, ? extends V> e : m.entrySet()){
+            put(e.getKey(), e.getValue());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @implSpec
+     * 此实现调用entrySet.clear()
+     *
+     * 注意此实现抛出一个UnsupportedOperation 如果
+     * entrySet不支持clear操作
+     *
+     * @throws UnsupportedOperationException {@inheritDoc}
+     *
+     */
+    public void clear(){
+        entrySet().clear();
+    }
+
+    //Views
+    /**
+     * 在这些视图第一次需要的时候，视图被创建，包含正确的此map实例
+     * 的视图。这些视力是无状态的，因此没有原因要创建多个。
+     */
+    transient Set<K> keySet;
+    transient Collection<V> values;
+
+    public Set<K> keySet(){
+        Set<K> ks = keySet;
+        if(ks == null){
+            ks = new AbstractSet<K>() {
+                @Override
+                public Iterator<K> iterator() {
+                    return new Iterator<K>() {
+                        private Iterator<Entry<K, V>> i = entrySet().iterator();
+                        @Override
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
+
+                        @Override
+                        public K next() {
+                            return i.next().getKey();
+                        }
+
+                        public void remove(){
+                            i.remove();
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    return AbstractMap.this.size();
+                }
+
+                public boolean isEmpty(){
+                    return AbstractMap.this.isEmpty();
+                }
+
+                public void clear(){
+                    AbstractMap.this.clear();
+                }
+
+                public boolean contains(Object k){
+                    return AbstractMap.this.containsKey(k);
+                }
+            };
+
+            keySet = ks;
+        }
+        return ks;
+    }
+
+    public Collection<V> values(){
+        Collection<V> vals = values;
+        if(vals == null){
+            vals = new AbstractCollection<V>() {
+                @Override
+                public Iterator<V> iterator() {
+                    return new Iterator<V>() {
+                        private Iterator<Entry<K, V>> i = entrySet().iterator();
+
+
+                        @Override
+                        public boolean hasNext() {
+                            return i.hasNext();
+                        }
+
+                        @Override
+                        public V next() {
+                            return i.next().getValue();
+                        }
+
+                        public void remove(){
+                            i.remove();
+                        }
+                    };
+
+
+                }
+
+                @Override
+                public int size() {
+                    return AbstractMap.this.size();
+                }
+
+                public boolean isEmpty(){
+                    return AbstractMap.this.isEmpty();
+                }
+
+                public void clear(){
+                    AbstractMap.this.clear();
+                }
+
+                public boolean contains(Object v){
+                    return AbstractMap.this.containsValue(v);
+                }
+            };
+            values = vals;
+        }
+        return vals;
+    }
+
+    public abstract Set<Entry<K, V>> entrySet();
+
+    public boolean equals(Object o){
+        if(o == this)
+            return true;
+
+        if(!(o instanceof Map)){
+            return false;
+        }
+        Map<?, ?> m = (Map<?, ?>) o;
+        if(m.size() != size())
+            return false;
+
+        try {
+            Iterator<Entry<K, V>> i = entrySet().iterator();
+            while (i.hasNext()){
+                Entry<K, V> e = i.next();
+                V value = e.getValue();
+                K key = e.getKey();
+
+                if(value == null){
+                    if(!(m.get(key) == null && m.containsKey(key)))
+                        return false;
+                } else {
+                    if(!value.equals(m.get(key)))
+                        return false;
+                }
+
+            }
+        }catch (ClassCastException unused){
+            return false;
+        }catch (NullPointerException unused){
+            return false;
+        }
+
+        return true;
+    }
+
+    public int hashCode(){
+        int h = 0;
+        Iterator<Entry<K, V>> i = entrySet().iterator();
+        while (i.hasNext())
+            h += i.next().hashCode();
+
+        return h;
+    }
+
+    public String toString(){
+        Iterator<Entry<K, V>> i = entrySet().iterator();
+        if(!i.hasNext())
+            return "{}";
+        StringBuilder s = new StringBuilder();
+        s.append('{');
+        for(;;){
+            Entry<K, V> e = i.next();
+            s.append(e.getKey() == this ? "(this map)" : e.getKey());
+            s.append(e.getValue() == this ? "(this map)" : e.getValue());
+            if(!i.hasNext()){
+                return s.append("}").toString();
+            }
+            s.append(',').append(' ');
+        }
+    }
+
+    protected Object clone() throws CloneNotSupportedException{
+        AbstractMap<?, ?> result = (AbstractMap<?, ?>) super.clone();
+        result.keySet = null;
+        result.values = null;
+        return result;
+    }
+
+    /**
+     *实用的方法为SimeEntry 和 SimpleImmutableEntry.
+     * 测试是否相等，检查是否为null
+     */
+    private static boolean eq(Object o1, Object o2){
+        return o1 == null ? o2 == null : o1.equals(o2);
+    }
+
+    public static class SimpleEntry<K, V>
+        implements Entry<K, V>, Serializable
+    {
+
+        private final K key;
+        private  V value;
+
+        public SimpleEntry(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        public SimpleEntry(Entry<? extends K, ? extends  V> entry){
+            this.key = entry.getKey();
+            this.value = entry.getValue();
+        }
+        @Override
+        public K getKey() {
+            return key;
+        }
+
+        @Override
+        public V getValue() {
+            return value;
+        }
+
+        @Override
+        public V setValue(V value) {
+            V oldValue = this.value;
+            this.value = value;
+            return value;
+        }
+
+        public boolean equals(Object o){
+            if(!(o instanceof Map.Entry))
+                return false;
+            Map.Entry<?, ?> e = (Entry<?, ?>) o;
+            return eq(key, e.getKey()) && eq(value, e.getValue());
+        }
+
+        public int hashCode(){
+            return (key == null ? 0 : key.hashCode()) ^
+                    (value == null ? 0 : value.hashCode());
+        }
+
+        public String toString(){
+            return key + "=" + value;
+        }
+    }
+
+    public static class  SimpleImmutableEntry<K ,V>
+        implements Entry<K, V>, Serializable
+    {
+        private final K key;
+        private final V value;
+
+        public SimpleImmutableEntry(K key, V value) {
+            this.key = key;
+            this.value = value;
+        }
+
+        public SimpleImmutableEntry(Entry<? extends K, ? extends V> e) {
+            this.key = e.getKey();
+            this.value = e.getValue();
+        }
+
+        @Override
+        public K getKey() {
+            return key;
+        }
+
+        @Override
+        public V getValue() {
+            return value;
+        }
+
+        @Override
+        public V setValue(V value) {
+            throw  new UnsupportedOperationException();
+        }
+
+        public boolean equals(Object o){
+            if(!(o instanceof Map.Entry))
+                return false;
+            Map.Entry<?, ?> e = (Entry<?, ?>) o;
+            return eq(key, e.getKey()) && eq(value, e.getValue());
+        }
+
+        public int hashCode(){
+            return (key == null ? 0 : key.hashCode()) ^
+                    (value == null ? 0 : value.hashCode());
+        }
+
+        public String toString(){
+            return key + "=" + value;
+        }
     }
 
 }
